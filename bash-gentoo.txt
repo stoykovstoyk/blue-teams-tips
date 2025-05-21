@@ -1,0 +1,52 @@
+#!/bin/bash
+
+echo "[+] Intruder Detection Script - Gentoo Linux"
+echo "[+] Date: $(date)"
+echo "-----------------------------------------"
+
+# 1. Who is currently on the machine
+echo -e "\n[+] Active sessions (who & pts):"
+who
+ps aux | grep pts | grep -v grep
+
+# 2. TTY of current user
+echo -e "\n[+] Your current TTY:"
+tty
+
+# 3. Look for suspicious reverse shell commands in process list
+echo -e "\n[+] Checking for possible reverse shells (bash -i, nc, socat, python)..."
+ps aux | grep -Ei 'bash -i|nc -e|/dev/tcp|socat|python -c|sh -i' | grep -v grep
+
+# 4. Check common temp directories for dropped scripts
+echo -e "\n[+] Scanning /tmp, /dev/shm, /var/tmp for suspicious scripts..."
+find /tmp /dev/shm /var/tmp -type f -exec grep -EI 'bash -i|/dev/tcp|python -c|php -r|socat' {} \; 2>/dev/null
+
+# 5. Check for web shells or backdoors (PHP)
+echo -e "\n[+] Searching for PHP web shells..."
+find / -type f -name "*.php" -exec grep -i 'system($_REQUEST' {} \; 2>/dev/null
+
+# 6. SSH persistence: check authorized_keys
+echo -e "\n[+] Checking SSH persistence (/root/.ssh/authorized_keys)..."
+if [ -f /root/.ssh/authorized_keys ]; then
+  echo "[!] Found /root/.ssh/authorized_keys:"
+  ls -la /root/.ssh/
+  cat /root/.ssh/authorized_keys
+else
+  echo "No SSH keys found in /root/.ssh/"
+fi
+
+# 7. SUID bash backdoor
+echo -e "\n[+] Checking for SUID bash (possible backdoor)..."
+/bin/ls -l /bin/bash | grep 's..s'
+
+# 8. Find all SUID binaries (only root should install these)
+echo -e "\n[+] Listing all SUID binaries:"
+find / -perm -4000 -type f 2>/dev/null
+
+# 9. Check for unexpected users or shadow changes
+echo -e "\n[+] Checking for suspicious users or password changes..."
+cut -d: -f1 /etc/passwd
+echo -e "\n[+] Last password changes:"
+ls -l /etc/shadow
+
+echo -e "\n[✓] Scan completed."
